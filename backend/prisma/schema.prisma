@@ -1,0 +1,176 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+  REVIEWER
+  FINANCE
+  UNIVERSITY_PARTNER
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  SHORTLISTED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  NEEDS_REVIEW
+  EXPIRED
+  SUSPENDED
+}
+
+enum FundingType {
+  FULL
+  PARTIAL
+}
+
+model User {
+  id                     String                   @id @default(cuid())
+  email                  String                   @unique
+  passwordHash           String
+  role                   Role                     @default(STUDENT)
+  emailVerified          Boolean                  @default(false)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  student                Student?
+  reviews                Review[]
+  auditLogs              AuditLog[]
+  emailVerificationTokens EmailVerificationToken[]
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Student {
+  id              String        @id @default(cuid())
+  userId          String        @unique
+  firstName       String
+  lastName        String
+  country         String?
+  citizenship     String?
+  degreeLevel     String?
+  field           String?
+  gpa             Float?
+  targetIntake    String?
+  fundingNeed     String?
+  profileComplete Int           @default(0)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents       Document[]
+  applications    Application[]
+}
+
+model University {
+  id                 String             @id @default(cuid())
+  name               String
+  country            String             @default("United States")
+  website            String?
+  verificationStatus VerificationStatus @default(PENDING)
+  programs           Program[]
+  scholarships       Scholarship[]
+}
+
+model Program {
+  id            String        @id
+  universityId  String
+  name          String
+  degreeLevel   String
+  field         String
+  tuitionAnnual Int?
+  university    University    @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  scholarships  Scholarship[]
+}
+
+model Scholarship {
+  id                 String             @id @default(cuid())
+  title              String
+  description        String
+  provider           String
+  sourceUrl          String?
+  degreeLevel        String
+  field              String
+  fundingType        FundingType
+  amountText         String
+  deadline           DateTime?
+  minGpa             Float?
+  citizenships       String[]
+  verificationStatus VerificationStatus @default(PENDING)
+  universityId       String?
+  programId          String?
+  university         University?        @relation(fields: [universityId], references: [id])
+  program            Program?           @relation(fields: [programId], references: [id])
+  applications       Application[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model Document {
+  id           String             @id @default(cuid())
+  studentId    String
+  type         String
+  originalName String
+  storageKey   String
+  mimeType     String
+  sizeBytes    Int
+  status       VerificationStatus @default(PENDING)
+  uploadedAt   DateTime           @default(now())
+  student      Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Application {
+  id            String            @id @default(cuid())
+  studentId     String
+  scholarshipId String
+  status        ApplicationStatus @default(DRAFT)
+  submittedAt   DateTime?
+  notes         String?
+  student       Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  scholarship   Scholarship       @relation(fields: [scholarshipId], references: [id])
+  reviews       Review[]
+
+  @@unique([studentId, scholarshipId])
+}
+
+model Review {
+  id               String      @id @default(cuid())
+  applicationId    String
+  reviewerId       String
+  score            Int?
+  recommendation   String?
+  conflictDeclared Boolean     @default(false)
+  notes            String?
+  createdAt        DateTime    @default(now())
+  application      Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  reviewer         User        @relation(fields: [reviewerId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+}

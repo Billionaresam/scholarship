@@ -1,0 +1,5 @@
+{
+  "name":"scholarbridge","private":true,"workspaces":["frontend","backend"],
+  "scripts":{"dev":"concurrently \"npm:dev:backend\" \"npm:dev:frontend\"","dev:frontend":"npm --workspace frontend run dev","dev:backend":"npm --workspace backend run dev","build":"npm -ws run build","db:generate":"npm --workspace backend run db:generate","db:migrate":"npm --workspace backend run db:migrate","db:deploy":"npm --workspace backend run db:deploy","db:seed":"npm --workspace backend run db:seed","data:universities":"npm --workspace backend run data:universities","test":"npm -ws run test"},
+  "devDependencies":{"concurrently":"^9.2.1"}
+}
