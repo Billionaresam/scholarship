@@ -5,8 +5,10 @@ export async function api<T>(path: string, options: RequestInit = {}) {
 	if (!API && !import.meta.env.DEV) throw new TypeError('API URL is not configured');
 
 	const token = localStorage.getItem('sb_token');
+	const method = (options.method || 'GET').toUpperCase();
 	const response = await fetch((API || '/api') + path, {
 		...options,
+		cache: options.cache || (method === 'GET' && !token ? 'default' : 'no-store'),
 		headers: {
 			'Content-Type': 'application/json',
 			...(token ? { Authorization: `Bearer ${token}` } : {}),

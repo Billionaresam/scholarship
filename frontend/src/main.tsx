@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 import { api } from "./lib/api";
@@ -54,6 +54,8 @@ type StudentProfile = {
   fundingNeed: string;
 };
 type View = "discover" | "universities" | "saved" | "applications" | "profile";
+type CookieConsent = { essential: true; analytics: boolean; updatedAt: string };
+type PolicyPage = "privacy" | "terms";
 
 const emptyProfile: StudentProfile = {
   country: "",
@@ -136,6 +138,30 @@ const readStorage = <T,>(key: string, fallback: T): T => {
   }
 };
 
+const readCookieConsent = (): CookieConsent | null => {
+  const value = document.cookie
+    .split("; ")
+    .find((cookie) => cookie.startsWith("sb_cookie_consent="))
+    ?.slice("sb_cookie_consent=".length);
+  if (!value) return null;
+  try {
+    return JSON.parse(decodeURIComponent(value)) as CookieConsent;
+  } catch {
+    return null;
+  }
+};
+
+const writeCookieConsent = (analytics: boolean) => {
+  const consent: CookieConsent = {
+    essential: true,
+    analytics,
+    updatedAt: new Date().toISOString(),
+  };
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `sb_cookie_consent=${encodeURIComponent(JSON.stringify(consent))}; Path=/; Max-Age=15552000; SameSite=Lax${secure}`;
+  return consent;
+};
+
 function App() {
   const [view, setView] = useState<View>("discover");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -185,6 +211,13 @@ function App() {
   const [universityLoading, setUniversityLoading] = useState(false);
   const [universityError, setUniversityError] = useState("");
   const [scholarshipError, setScholarshipError] = useState("");
+  const [cookieConsent, setCookieConsent] = useState<CookieConsent | null>(
+    readCookieConsent,
+  );
+  const [cookiePreferencesOpen, setCookiePreferencesOpen] = useState(false);
+  const [analyticsPreference, setAnalyticsPreference] = useState(false);
+  const [policyPage, setPolicyPage] = useState<PolicyPage | null>(null);
+  const [contactStatus, setContactStatus] = useState("");
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -535,6 +568,38 @@ function App() {
         error instanceof Error ? error.message : "Could not save this profile.",
       );
     }
+  }
+
+  async function submitContact(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setContactStatus("Sending...");
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    try {
+      await api("/contact", {
+        method: "POST",
+        body: JSON.stringify({
+          name: values.get("name"),
+          email: values.get("email"),
+          subject: values.get("subject"),
+          message: values.get("message"),
+          website: values.get("website"),
+        }),
+      });
+      form.reset();
+      setContactStatus("Thanks. Your message has been sent.");
+    } catch (error) {
+      setContactStatus(
+        error instanceof Error
+          ? error.message
+          : "We could not send your message. Please try again later.",
+      );
+    }
+  }
+
+  function saveCookiePreferences(analytics: boolean) {
+    setCookieConsent(writeCookieConsent(analytics));
+    setCookiePreferencesOpen(false);
   }
 
   const navItems: { id: View; label: string; icon: string }[] = [
@@ -1354,13 +1419,116 @@ function App() {
       </main>
 
       <footer className="site-footer">
-        <span>
-          ScholarBridge <i>·</i> Student Desk
-        </span>
-        <span>
-          University directory data: IPEDS
-        </span>
+        <div className="footer-main">
+          <section className="footer-brand-block">
+            <button className="footer-brand" onClick={() => setView("discover")} aria-label="ScholarBridge home">
+              <span className="brand-mark">S</span>
+              <span>ScholarBridge<small>STUDENT DESK</small></span>
+            </button>
+            <p>Make your next step toward higher education a little clearer.</p>
+            <div className="footer-socials" aria-label="Social media">
+              <a href={import.meta.env.VITE_SOCIAL_FACEBOOK || "https://www.facebook.com/"} target="_blank" rel="noreferrer" aria-label="Facebook" title="Facebook">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.4 21v-8.2h2.8l.4-3.2h-3.2v-2c0-.9.3-1.6 1.6-1.6h1.7V3.1c-.3 0-1.4-.1-2.6-.1-2.6 0-4.4 1.6-4.4 4.5v2.1H7v3.2h2.7V21h3.7Z" /></svg>
+              </a>
+              <a href={import.meta.env.VITE_SOCIAL_INSTAGRAM || "https://www.instagram.com/"} target="_blank" rel="noreferrer" aria-label="Instagram" title="Instagram">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="17.6" cy="6.7" r="1.15" /></svg>
+              </a>
+              <a href={import.meta.env.VITE_SOCIAL_X || "https://x.com/"} target="_blank" rel="noreferrer" aria-label="X" title="X">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.9 3H22l-6.8 7.8L23.2 21h-6.3L12 14.7 6.5 21H3.3l7.3-8.4L2.8 3h6.5l4.5 5.9L18.9 3Zm-1.1 16h1.7L8.3 4.9H6.5L17.8 19Z" /></svg>
+              </a>
+              <a href={import.meta.env.VITE_SOCIAL_TIKTOK || "https://www.tiktok.com/"} target="_blank" rel="noreferrer" aria-label="TikTok" title="TikTok">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.6 3c.3 2.1 1.5 3.7 3.4 4.4v3.2a9 9 0 0 1-3.4-1.1v6.7c0 3.3-2.6 5.8-5.9 5.8a5.8 5.8 0 0 1-5.9-5.8c0-3.4 2.7-5.9 6.3-5.8v3.3c-1.7-.3-3 .8-3 2.5a2.6 2.6 0 0 0 2.6 2.6c1.7 0 2.6-1.1 2.6-3V3h3.3Z" /></svg>
+              </a>
+            </div>
+          </section>
+          <nav className="footer-column" aria-label="Explore the site">
+            <h2>Explore</h2>
+            <button onClick={() => setView("discover")}>Scholarships</button>
+            <button onClick={() => setView("universities")}>University directory</button>
+            <button onClick={() => setView("saved")}>Saved opportunities</button>
+            <button onClick={() => setView("applications")}>Applications</button>
+            <button onClick={() => setView("profile")}>Student profile</button>
+          </nav>
+          <nav className="footer-column" aria-label="Legal and support">
+            <h2>Information</h2>
+            <button onClick={() => setPolicyPage("privacy")}>Privacy policy</button>
+            <button onClick={() => setPolicyPage("terms")}>Terms and conditions</button>
+            <a href="#contact">Contact us</a>
+            <a href="#sitemap">Sitemap</a>
+            <button onClick={() => { setAnalyticsPreference(cookieConsent?.analytics ?? false); setCookiePreferencesOpen(true); }}>Cookie preferences</button>
+          </nav>
+          <section className="footer-contact" id="contact">
+            <h2>Get in touch</h2>
+            <p>Questions or feedback? Send our team a note.</p>
+            <form onSubmit={submitContact}>
+              <div className="contact-name-row">
+                <label>Name<input name="name" autoComplete="name" maxLength={80} required /></label>
+                <label>Email<input name="email" type="email" autoComplete="email" maxLength={254} required /></label>
+              </div>
+              <label>Subject<input name="subject" maxLength={120} required /></label>
+              <label>Message<textarea name="message" rows={3} minLength={10} maxLength={4000} required /></label>
+              <label className="contact-honeypot" aria-hidden="true">Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
+              <div className="contact-submit-row"><span role="status">{contactStatus}</span><button type="submit" aria-label="Send contact message">Send message <span>↗</span></button></div>
+            </form>
+          </section>
+        </div>
+        <nav id="sitemap" className="footer-sitemap" aria-label="Sitemap">
+          <span>Site map</span>
+          <button onClick={() => setView("discover")}>Home</button>
+          <button onClick={() => setView("universities")}>Universities</button>
+          <button onClick={() => setView("saved")}>Saved</button>
+          <button onClick={() => setPolicyPage("privacy")}>Privacy</button>
+          <button onClick={() => setPolicyPage("terms")}>Terms</button>
+        </nav>
+        <div className="footer-bottom"><span>© {new Date().getFullYear()} ScholarBridge. All rights reserved.</span><span>University directory data: IPEDS</span></div>
       </footer>
+      {!cookieConsent && (
+        <aside className="cookie-banner" aria-label="Cookie preferences">
+          <div><b>Your privacy matters</b><p>We use essential browser storage to keep the service working. Optional analytics are off unless you allow them.</p></div>
+          <div className="cookie-actions">
+            <button className="cookie-secondary" onClick={() => saveCookiePreferences(false)}>Reject optional</button>
+            <button className="cookie-secondary" onClick={() => { setAnalyticsPreference(false); setCookiePreferencesOpen(true); }}>Manage</button>
+            <button className="cookie-primary" onClick={() => saveCookiePreferences(true)}>Accept all</button>
+          </div>
+        </aside>
+      )}
+      {policyPage && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPolicyPage(null); }}>
+          <section className="policy-modal" role="dialog" aria-modal="true" aria-labelledby="policy-title">
+            <button className="modal-close" onClick={() => setPolicyPage(null)} aria-label="Close">×</button>
+            <div className="eyebrow">SCHOLARBRIDGE · {policyPage === "privacy" ? "YOUR INFORMATION" : "USING THE SERVICE"}</div>
+            <h2 id="policy-title">{policyPage === "privacy" ? "Privacy policy" : "Terms and conditions"}</h2>
+            {policyPage === "privacy" ? (
+              <div className="policy-copy">
+                <p><b>Information we handle.</b> If you create an account, we use your email and profile details to provide your student workspace, saved opportunities, and applications. Contact form details are sent to our support team and are not used for advertising.</p>
+                <p><b>Cookies and browser storage.</b> ScholarBridge stores your cookie preference in a first-party cookie. Essential account and saved-work data may also be stored in your browser. Optional analytics are off unless enabled in cookie preferences; this release does not load an analytics or advertising provider.</p>
+                <p><b>Your choices.</b> You can change optional cookie preferences at any time from the footer. Signing out removes the account token from this browser. For questions about your information, use the contact form below.</p>
+                <p className="policy-updated">Last updated October 7, 2026</p>
+              </div>
+            ) : (
+              <div className="policy-copy">
+                <p><b>Using ScholarBridge.</b> You may use this service to discover education funding, research U.S. institutions, and organize your own application plans. Keep account credentials secure and provide accurate information.</p>
+                <p><b>Third-party information.</b> Scholarship and university details are provided for research and may change. Verify eligibility, deadlines, fees, and admissions requirements with the official provider before making decisions. External sites are governed by their own terms.</p>
+                <p><b>Availability and responsibility.</b> We work to keep the service useful and current but cannot guarantee uninterrupted access, completeness, or an award outcome. Do not use the service unlawfully or interfere with its operation.</p>
+                <p><b>Questions.</b> Contact the ScholarBridge team using the contact form on this page.</p>
+                <p className="policy-updated">Last updated October 7, 2026</p>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+      {cookiePreferencesOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCookiePreferencesOpen(false); }}>
+          <section className="policy-modal cookie-modal" role="dialog" aria-modal="true" aria-labelledby="cookie-title">
+            <button className="modal-close" onClick={() => setCookiePreferencesOpen(false)} aria-label="Close">×</button>
+            <div className="eyebrow">YOUR PRIVACY</div>
+            <h2 id="cookie-title">Cookie preferences</h2>
+            <div className="cookie-setting"><div><b>Essential</b><p>Required to remember this choice and keep core account features working.</p></div><input type="checkbox" checked disabled aria-label="Essential cookies always active" /></div>
+            <label className="cookie-setting"><div><b>Optional analytics</b><p>Allow anonymous usage measurement if an analytics service is configured.</p></div><input type="checkbox" checked={analyticsPreference} onChange={(event) => setAnalyticsPreference(event.target.checked)} /></label>
+            <div className="cookie-modal-actions"><button className="button-outline" onClick={() => saveCookiePreferences(false)}>Reject optional</button><button className="button-dark" onClick={() => saveCookiePreferences(analyticsPreference)}>Save preferences</button></div>
+          </section>
+        </div>
+      )}
       {selected && (
         <div
           className="modal-backdrop"

@@ -15,7 +15,7 @@ npm run db:migrate
 npm run dev
 ```
 
-Open http://localhost:5173. The API and PostgreSQL provide account, profile, and application services. Mailpit captures verification messages locally at http://localhost:8025. Configure a production SMTP provider and sender address before deploying. `npm run dev` starts the frontend and backend together so the federal university directory is available immediately.
+Open http://localhost:5173. The API and PostgreSQL provide account, profile, application, and contact services. Mailpit captures verification and contact messages locally at http://localhost:8025. Configure a production SMTP provider, sender address, and `CONTACT_EMAIL` before deploying. Set the four `VITE_SOCIAL_*` frontend variables to the official social profiles before launch; see the frontend and backend env examples. `npm run dev` starts the frontend and backend together so the federal university directory is available immediately.
 
 ## University directory
 
