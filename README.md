@@ -2,6 +2,11 @@
 
 A scholarship discovery and application workspace for students planning to study in the United States.
 
+Copyright (c) 2026 Billionaresam. All rights reserved. The original software,
+design, content, and branding are proprietary; no reuse permission is granted
+without written permission. See [LICENSE](LICENSE). Third-party software and
+public-source data retain their respective licenses and terms.
+
 ## Local development
 
 Requirements: Node.js 20+ and npm 10+.

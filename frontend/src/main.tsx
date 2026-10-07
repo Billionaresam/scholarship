@@ -217,6 +217,7 @@ function App() {
   const [cookiePreferencesOpen, setCookiePreferencesOpen] = useState(false);
   const [analyticsPreference, setAnalyticsPreference] = useState(false);
   const [policyPage, setPolicyPage] = useState<PolicyPage | null>(null);
+  const [contactOpen, setContactOpen] = useState(false);
   const [contactStatus, setContactStatus] = useState("");
 
   useEffect(() => {
@@ -1453,23 +1454,22 @@ function App() {
             <h2>Information</h2>
             <button onClick={() => setPolicyPage("privacy")}>Privacy policy</button>
             <button onClick={() => setPolicyPage("terms")}>Terms and conditions</button>
-            <a href="#contact">Contact us</a>
+            <button onClick={() => { setContactStatus(""); setContactOpen(true); }}>Contact us</button>
             <a href="#sitemap">Sitemap</a>
             <button onClick={() => { setAnalyticsPreference(cookieConsent?.analytics ?? false); setCookiePreferencesOpen(true); }}>Cookie preferences</button>
           </nav>
-          <section className="footer-contact" id="contact">
+          <section className="footer-contact">
             <h2>Get in touch</h2>
-            <p>Questions or feedback? Send our team a note.</p>
-            <form onSubmit={submitContact}>
-              <div className="contact-name-row">
-                <label>Name<input name="name" autoComplete="name" maxLength={80} required /></label>
-                <label>Email<input name="email" type="email" autoComplete="email" maxLength={254} required /></label>
-              </div>
-              <label>Subject<input name="subject" maxLength={120} required /></label>
-              <label>Message<textarea name="message" rows={3} minLength={10} maxLength={4000} required /></label>
-              <label className="contact-honeypot" aria-hidden="true">Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
-              <div className="contact-submit-row"><span role="status">{contactStatus}</span><button type="submit" aria-label="Send contact message">Send message <span>↗</span></button></div>
-            </form>
+            <p>Questions or feedback? Our team is here to help.</p>
+            <button
+              className="footer-contact-trigger"
+              onClick={() => { setContactStatus(""); setContactOpen(true); }}
+              aria-label="Open contact form"
+              title="Open contact form"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1" fill="none" stroke="currentColor" strokeWidth="1.7" /><path d="m4.5 7 7.5 5.8L19.5 7" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <span>Contact our team</span><span aria-hidden="true">↗</span>
+            </button>
           </section>
         </div>
         <nav id="sitemap" className="footer-sitemap" aria-label="Sitemap">
@@ -1480,7 +1480,7 @@ function App() {
           <button onClick={() => setPolicyPage("privacy")}>Privacy</button>
           <button onClick={() => setPolicyPage("terms")}>Terms</button>
         </nav>
-        <div className="footer-bottom"><span>© {new Date().getFullYear()} ScholarBridge. All rights reserved.</span><span>University directory data: IPEDS</span></div>
+        <div className="footer-bottom"><span>© {new Date().getFullYear()} Billionaresam. All rights reserved.</span><span>University directory data: IPEDS</span></div>
       </footer>
       {!cookieConsent && (
         <aside className="cookie-banner" aria-label="Cookie preferences">
@@ -1502,15 +1502,16 @@ function App() {
               <div className="policy-copy">
                 <p><b>Information we handle.</b> If you create an account, we use your email and profile details to provide your student workspace, saved opportunities, and applications. Contact form details are sent to our support team and are not used for advertising.</p>
                 <p><b>Cookies and browser storage.</b> ScholarBridge stores your cookie preference in a first-party cookie. Essential account and saved-work data may also be stored in your browser. Optional analytics are off unless enabled in cookie preferences; this release does not load an analytics or advertising provider.</p>
-                <p><b>Your choices.</b> You can change optional cookie preferences at any time from the footer. Signing out removes the account token from this browser. For questions about your information, use the contact form below.</p>
+                <p><b>Your choices.</b> You can change optional cookie preferences at any time from the footer. Signing out removes the account token from this browser. For questions about your information, open the contact form from the footer.</p>
                 <p className="policy-updated">Last updated October 7, 2026</p>
               </div>
             ) : (
               <div className="policy-copy">
                 <p><b>Using ScholarBridge.</b> You may use this service to discover education funding, research U.S. institutions, and organize your own application plans. Keep account credentials secure and provide accurate information.</p>
+                <p><b>Copyright and permitted use.</b> Original ScholarBridge software, design, written content, and branding are proprietary to Billionaresam. No permission is granted to copy, reproduce, redistribute, modify, or create derivative works from those materials without prior written permission, except where applicable law or a separate license allows it. Third-party software, public-source data, and other third-party materials remain governed by their own terms.</p>
                 <p><b>Third-party information.</b> Scholarship and university details are provided for research and may change. Verify eligibility, deadlines, fees, and admissions requirements with the official provider before making decisions. External sites are governed by their own terms.</p>
                 <p><b>Availability and responsibility.</b> We work to keep the service useful and current but cannot guarantee uninterrupted access, completeness, or an award outcome. Do not use the service unlawfully or interfere with its operation.</p>
-                <p><b>Questions.</b> Contact the ScholarBridge team using the contact form on this page.</p>
+                <p><b>Questions.</b> Contact the ScholarBridge team using the contact form opened from the footer.</p>
                 <p className="policy-updated">Last updated October 7, 2026</p>
               </div>
             )}
@@ -1526,6 +1527,31 @@ function App() {
             <div className="cookie-setting"><div><b>Essential</b><p>Required to remember this choice and keep core account features working.</p></div><input type="checkbox" checked disabled aria-label="Essential cookies always active" /></div>
             <label className="cookie-setting"><div><b>Optional analytics</b><p>Allow anonymous usage measurement if an analytics service is configured.</p></div><input type="checkbox" checked={analyticsPreference} onChange={(event) => setAnalyticsPreference(event.target.checked)} /></label>
             <div className="cookie-modal-actions"><button className="button-outline" onClick={() => saveCookiePreferences(false)}>Reject optional</button><button className="button-dark" onClick={() => saveCookiePreferences(analyticsPreference)}>Save preferences</button></div>
+          </section>
+        </div>
+      )}
+      {contactOpen && (
+        <div
+          className="modal-backdrop contact-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setContactOpen(false);
+          }}
+        >
+          <section className="policy-modal contact-modal" role="dialog" aria-modal="true" aria-labelledby="contact-title">
+            <button className="modal-close" onClick={() => setContactOpen(false)} aria-label="Close">×</button>
+            <div className="eyebrow">SCHOLARBRIDGE · WE’RE LISTENING</div>
+            <h2 id="contact-title">Send us a message</h2>
+            <form className="contact-modal-form" onSubmit={submitContact}>
+              <div className="contact-name-row">
+                <label>Name<input name="name" autoComplete="name" maxLength={80} required /></label>
+                <label>Email<input name="email" type="email" autoComplete="email" maxLength={254} required /></label>
+              </div>
+              <label>Subject<input name="subject" maxLength={120} required /></label>
+              <label>Message<textarea name="message" rows={5} minLength={10} maxLength={4000} required /></label>
+              <label className="contact-honeypot" aria-hidden="true">Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
+              <div className="contact-submit-row"><span role="status">{contactStatus}</span><button type="submit">Send message <span>↗</span></button></div>
+            </form>
           </section>
         </div>
       )}
