@@ -1474,11 +1474,11 @@ function App() {
         </div>
         <nav id="sitemap" className="footer-sitemap" aria-label="Sitemap">
           <span>Site map</span>
-          <button onClick={() => setView("discover")}>Home</button>
+          <button onClick={() => setView("discover")}>Scholarships</button>
           <button onClick={() => setView("universities")}>Universities</button>
-          <button onClick={() => setView("saved")}>Saved</button>
-          <button onClick={() => setPolicyPage("privacy")}>Privacy</button>
-          <button onClick={() => setPolicyPage("terms")}>Terms</button>
+          <button onClick={() => setView("saved")}>Saved opportunities</button>
+          <button onClick={() => setView("applications")}>Applications</button>
+          <button onClick={() => setView("profile")}>Student profile</button>
         </nav>
         <div className="footer-bottom"><span>© {new Date().getFullYear()} Billionaresam. All rights reserved.</span><span>University directory data: IPEDS</span></div>
       </footer>
