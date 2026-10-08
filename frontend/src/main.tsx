@@ -21,7 +21,7 @@ type Application = {
   id: string;
   scholarshipId: string;
   status: string;
-  createdAt: string;
+  submittedAt: string | null;
 };
 type University = {
   id: number;
@@ -166,8 +166,12 @@ function App() {
   const [view, setView] = useState<View>("discover");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuButton = useRef<HTMLButtonElement>(null);
+  const profileDirty = useRef(false);
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const [applicationsError, setApplicationsError] = useState("");
+  const [applicationsReload, setApplicationsReload] = useState(0);
   const [saved, setSaved] = useState<string[]>(() =>
     readStorage("sb_saved", []),
   );
@@ -181,6 +185,7 @@ function App() {
   const [funding, setFunding] = useState("Any award");
   const [selected, setSelected] = useState<Scholarship | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  const [authReturnView, setAuthReturnView] = useState<View>("applications");
   const [authMode, setAuthMode] = useState<"signin" | "create" | "verify">(
     "signin",
   );
@@ -237,6 +242,10 @@ function App() {
   }, [mobileMenuOpen]);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [view]);
+
+  useEffect(() => {
     let active = true;
     api<Scholarship[]>("/scholarships")
       .then((items) => {
@@ -268,7 +277,15 @@ function App() {
     );
   }, [savedUniversities]);
   useEffect(() => {
-    if (!localStorage.getItem("sb_token")) return;
+    if (!localStorage.getItem("sb_token")) {
+      setApplications([]);
+      setApplicationsLoading(false);
+      setApplicationsError("");
+      return;
+    }
+    let active = true;
+    setApplicationsLoading(true);
+    setApplicationsError("");
     api<
       Array<{
         id: string;
@@ -277,15 +294,28 @@ function App() {
         submittedAt: string | null;
       }>
     >("/applications/me")
-      .then((items) =>
-        setApplications(
-          items.map((item) => ({
-            ...item,
-            createdAt: item.submittedAt || new Date().toISOString(),
-          })),
-        ),
-      )
-      .catch(() => {});
+      .then((items) => {
+        if (active) setApplications(items);
+      })
+      .catch((error) => {
+        if (active)
+          setApplicationsError(
+            error instanceof Error
+              ? error.message
+              : "Could not load your applications.",
+          );
+      })
+      .finally(() => {
+        if (active) setApplicationsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [session, applicationsReload]);
+
+  useEffect(() => {
+    if (!localStorage.getItem("sb_token")) return;
+    let active = true;
     api<{
       email: string;
       student?: {
@@ -301,22 +331,34 @@ function App() {
       };
     }>("/me")
       .then((user) => {
+        if (!active) return;
         setEmail(user.email);
         if (!user.student) return;
         localStorage.setItem("sb_first_name", user.student.firstName);
         localStorage.setItem("sb_last_name", user.student.lastName);
         setSession(user.student.firstName);
-        setProfile({
-          country: user.student.country || "",
-          citizenship: user.student.citizenship || "",
-          degreeLevel: user.student.degreeLevel || "",
-          field: user.student.field || "",
-          gpa: user.student.gpa?.toString() || "",
-          targetIntake: user.student.targetIntake || "",
-          fundingNeed: user.student.fundingNeed || "",
-        });
+        if (!profileDirty.current)
+          setProfile({
+            country: user.student.country || "",
+            citizenship: user.student.citizenship || "",
+            degreeLevel: user.student.degreeLevel || "",
+            field: user.student.field || "",
+            gpa: user.student.gpa?.toString() || "",
+            targetIntake: user.student.targetIntake || "",
+            fundingNeed: user.student.fundingNeed || "",
+          });
       })
-      .catch(() => {});
+      .catch((error) => {
+        if (active)
+          setNotice(
+            error instanceof Error
+              ? error.message
+              : "Could not load your student profile.",
+          );
+      });
+    return () => {
+      active = false;
+    };
   }, [session]);
 
   useEffect(() => {
@@ -380,6 +422,10 @@ function App() {
       }),
     [scholarships, query, degree, funding, view, saved],
   );
+  const savedScholarships = useMemo(
+    () => scholarships.filter((item) => saved.includes(item.id)),
+    [scholarships, saved],
+  );
   const profileCompletion = Math.min(
     100,
     (session ? 25 : 0) +
@@ -396,6 +442,10 @@ function App() {
         ? current.filter((item) => item !== id)
         : [...current, id],
     );
+  const updateProfile = (field: keyof StudentProfile, value: string) => {
+    profileDirty.current = true;
+    setProfile((current) => ({ ...current, [field]: value }));
+  };
   const toggleSavedUniversity = (university: University) =>
     setSavedUniversities((current) =>
       current.some((item) => item.id === university.id)
@@ -406,6 +456,7 @@ function App() {
   async function startApplication(item: Scholarship) {
     if (!session) {
       setSelected(null);
+      setAuthReturnView("applications");
       setAuthMode("create");
       setAuthOpen(true);
       return;
@@ -420,7 +471,7 @@ function App() {
         body: JSON.stringify({ scholarshipId: item.id }),
       });
       setApplications((current) => [
-        { ...created, createdAt: new Date().toISOString() },
+        { ...created, submittedAt: null },
         ...current.filter(
           (application) => application.scholarshipId !== item.id,
         ),
@@ -516,7 +567,7 @@ function App() {
       return;
     }
     setAuthOpen(false);
-    setView("applications");
+    setView(authReturnView);
     setNotice("Your student workspace is ready.");
   }
 
@@ -542,7 +593,11 @@ function App() {
     setApplications((current) =>
       current.map((application) =>
         application.id === id
-          ? { ...application, status: "SUBMITTED" }
+          ? {
+              ...application,
+              status: "SUBMITTED",
+              submittedAt: new Date().toISOString(),
+            }
           : application,
       ),
     );
@@ -550,10 +605,15 @@ function App() {
   }
 
   async function saveProfile() {
+    if (!localStorage.getItem("sb_token")) {
+      setProfileStatus("Sign in to save your profile.");
+      setAuthReturnView("profile");
+      setAuthMode("signin");
+      setAuthOpen(true);
+      return;
+    }
     setProfileStatus("Saving...");
     try {
-      if (!localStorage.getItem("sb_token"))
-        throw new Error("Sign in to save your profile.");
       await api("/students/me", {
         method: "PUT",
         body: JSON.stringify({
@@ -563,6 +623,7 @@ function App() {
           gpa: profile.gpa ? Number(profile.gpa) : undefined,
         }),
       });
+      profileDirty.current = false;
       setProfileStatus("Profile saved to your account.");
     } catch (error) {
       setProfileStatus(
@@ -736,6 +797,7 @@ function App() {
               <button
                 className="sign-in-link"
                 onClick={() => {
+                  setAuthReturnView(view);
                   setAuthMode("signin");
                   setAuthOpen(true);
                 }}
@@ -1138,7 +1200,7 @@ function App() {
               <span>{saved.length} saved</span>
             </div>
             <div className="scholarship-list">
-              {filtered.map((item, index) => (
+              {savedScholarships.map((item, index) => (
                 <ScholarshipCard
                   key={item.id}
                   item={item}
@@ -1149,7 +1211,7 @@ function App() {
                 />
               ))}
             </div>
-            {!filtered.length && !savedUniversities.length && (
+            {!savedScholarships.length && !savedUniversities.length && (
               <div className="empty-state">
                 <span>♡</span>
                 <h3>Your shortlist is waiting</h3>
@@ -1157,9 +1219,14 @@ function App() {
                   Save a university or scholarship to keep it close while you
                   compare.
                 </p>
-                <button onClick={() => setView("universities")}>
-                  Explore universities
-                </button>
+                <div className="empty-actions">
+                  <button onClick={() => setView("discover")}>
+                    Explore scholarships
+                  </button>
+                  <button onClick={() => setView("universities")}>
+                    Explore universities
+                  </button>
+                </div>
               </div>
             )}
           </section>
@@ -1182,37 +1249,72 @@ function App() {
                 Explore awards <span>↗</span>
               </button>
             </div>
-            <div className="application-summary">
-              <div>
-                <span>IN PROGRESS</span>
-                <b>
-                  {applications
-                    .filter((application) => application.status === "DRAFT")
-                    .length.toString()
-                    .padStart(2, "0")}
-                </b>
+            {session && (
+              <div className="application-summary">
+                <div>
+                  <span>IN PROGRESS</span>
+                  <b>
+                    {applications
+                      .filter((application) => application.status === "DRAFT")
+                      .length.toString()
+                      .padStart(2, "0")}
+                  </b>
+                </div>
+                <div>
+                  <span>SUBMITTED</span>
+                  <b>
+                    {applications
+                      .filter((application) => application.status !== "DRAFT")
+                      .length.toString()
+                      .padStart(2, "0")}
+                  </b>
+                </div>
+                <div>
+                  <span>SAVED FOR LATER</span>
+                  <b>{saved.length.toString().padStart(2, "0")}</b>
+                </div>
               </div>
-              <div>
-                <span>SUBMITTED</span>
-                <b>
-                  {applications
-                    .filter((application) => application.status !== "DRAFT")
-                    .length.toString()
-                    .padStart(2, "0")}
-                </b>
-              </div>
-              <div>
-                <span>SAVED FOR LATER</span>
-                <b>{saved.length.toString().padStart(2, "0")}</b>
-              </div>
-            </div>
+            )}
             <div className="section-heading compact">
               <div>
                 <span className="eyebrow">APPLICATION TRACKER</span>
                 <h2>Your current applications</h2>
               </div>
             </div>
-            {applications.length ? (
+            {!session ? (
+              <div className="empty-state">
+                <span>◉</span>
+                <h3>Sign in to track your applications</h3>
+                <p>
+                  Your application tracker is available in your student
+                  workspace.
+                </p>
+                <button
+                  onClick={() => {
+                    setAuthReturnView("applications");
+                    setAuthMode("signin");
+                    setAuthOpen(true);
+                  }}
+                >
+                  Sign in
+                </button>
+              </div>
+            ) : applicationsLoading ? (
+              <div className="loading-line">
+                <span /> Loading your applications...
+              </div>
+            ) : applicationsError ? (
+              <div className="university-error" role="alert">
+                <b>Your applications could not be loaded</b>
+                <p>{applicationsError}</p>
+                <button
+                  className="text-button"
+                  onClick={() => setApplicationsReload((count) => count + 1)}
+                >
+                  Try again <span>↻</span>
+                </button>
+              </div>
+            ) : applications.length ? (
               <div className="application-list">
                 {applications.map((application) => {
                   const item = scholarships.find(
@@ -1227,8 +1329,10 @@ function App() {
                       <div className="application-name">
                         <b>{item?.title || "Scholarship application"}</b>
                         <span>
-                          {item?.provider || "ScholarBridge"} · Added{" "}
-                          {new Date(application.createdAt).toLocaleDateString()}
+                          {item?.provider || "ScholarBridge"}
+                          {application.submittedAt
+                            ? ` · Submitted ${new Date(application.submittedAt).toLocaleDateString()}`
+                            : " · Draft"}
                         </span>
                       </div>
                       <span
@@ -1238,7 +1342,10 @@ function App() {
                             : "status-pill submitted"
                         }
                       >
-                        {application.status === "DRAFT" ? "Draft" : "Submitted"}
+                        {application.status
+                          .toLowerCase()
+                          .replaceAll("_", " ")
+                          .replace(/\b\w/g, (letter) => letter.toUpperCase())}
                       </span>
                       {application.status === "DRAFT" && (
                         <button
@@ -1301,7 +1408,7 @@ function App() {
                     <input
                       value={profile.country}
                       onChange={(event) =>
-                        setProfile({ ...profile, country: event.target.value })
+                        updateProfile("country", event.target.value)
                       }
                       placeholder="e.g. Ghana"
                     />
@@ -1311,10 +1418,7 @@ function App() {
                     <input
                       value={profile.citizenship}
                       onChange={(event) =>
-                        setProfile({
-                          ...profile,
-                          citizenship: event.target.value,
-                        })
+                        updateProfile("citizenship", event.target.value)
                       }
                       placeholder="e.g. Ghanaian"
                     />
@@ -1324,10 +1428,7 @@ function App() {
                     <select
                       value={profile.degreeLevel}
                       onChange={(event) =>
-                        setProfile({
-                          ...profile,
-                          degreeLevel: event.target.value,
-                        })
+                        updateProfile("degreeLevel", event.target.value)
                       }
                     >
                       <option value="">Choose a level</option>
@@ -1341,7 +1442,7 @@ function App() {
                     <input
                       value={profile.field}
                       onChange={(event) =>
-                        setProfile({ ...profile, field: event.target.value })
+                        updateProfile("field", event.target.value)
                       }
                       placeholder="e.g. Public health"
                     />
@@ -1355,7 +1456,7 @@ function App() {
                       step="0.01"
                       value={profile.gpa}
                       onChange={(event) =>
-                        setProfile({ ...profile, gpa: event.target.value })
+                        updateProfile("gpa", event.target.value)
                       }
                       placeholder="0.00 - 4.00"
                     />
@@ -1365,10 +1466,7 @@ function App() {
                     <input
                       value={profile.targetIntake}
                       onChange={(event) =>
-                        setProfile({
-                          ...profile,
-                          targetIntake: event.target.value,
-                        })
+                        updateProfile("targetIntake", event.target.value)
                       }
                       placeholder="e.g. Fall 2027"
                     />
@@ -1378,10 +1476,7 @@ function App() {
                     <select
                       value={profile.fundingNeed}
                       onChange={(event) =>
-                        setProfile({
-                          ...profile,
-                          fundingNeed: event.target.value,
-                        })
+                        updateProfile("fundingNeed", event.target.value)
                       }
                     >
                       <option value="">Select your funding need</option>
