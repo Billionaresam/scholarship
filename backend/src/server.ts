@@ -14,6 +14,7 @@ import { searchIpedsDirectory } from './services/ipedsDirectory.js';
 dotenv.config({ path: process.env.ENV_FILE || '.env' });
 dotenv.config({ path: process.env.ENV_FILE || '../.env' });
 const db=new PrismaClient(), app=express(), port=Number(process.env.PORT||4000), secret=process.env.JWT_SECRET||'dev-only-change-me';
+app.set('trust proxy', 1);
 if (process.env.NODE_ENV === 'production' && secret.length < 32) throw new Error('JWT_SECRET must contain at least 32 characters in production.');
 app.use(helmet()); app.use(cors({origin:process.env.WEB_ORIGIN||'http://localhost:5173'})); app.use(express.json({limit:'1mb'})); app.use(rateLimit({windowMs:15*60*1000,max:200}));
 app.use('/api', (_req, res, next) => {
