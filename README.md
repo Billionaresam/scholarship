@@ -12,7 +12,6 @@ public-source data retain their respective licenses and terms.
 Requirements: Node.js 20+ and npm 10+.
 
 ```bash
-cp .env.example .env
 docker compose up -d
 npm install
 npm run db:generate
@@ -20,7 +19,7 @@ npm run db:migrate
 npm run dev
 ```
 
-Open http://localhost:5173. The API and PostgreSQL provide account, profile, application, and contact services. Mailpit captures verification and contact messages locally at http://localhost:8025. Configure a production SMTP provider, sender address, and `CONTACT_EMAIL` before deploying. Set the four `VITE_SOCIAL_*` frontend variables to the official social profiles before launch; see the frontend and backend env examples. `npm run dev` starts the frontend and backend together so the federal university directory is available immediately.
+Configure local values in the ignored `backend/.env` and `frontend/.env` files before starting the applications. The API and PostgreSQL provide account, profile, application, and contact services. Mailpit captures verification and contact messages locally at http://localhost:8025. Configure a production SMTP provider, sender address, and `CONTACT_EMAIL` before deploying. Set the four `VITE_SOCIAL_*` frontend variables to the official social profiles before launch. `npm run dev` starts the frontend and backend together so the federal university directory is available immediately.
 
 ## University directory
 
@@ -32,11 +31,11 @@ The bundled federal university directory can be browsed without a database. Reru
 
 ## Independent hosting
 
-The repository root only coordinates local development. Each deployable application has its own `package.json`, lockfile, env example, and build context.
+The repository root only coordinates local development. Each deployable application has its own `package.json`, lockfile, and build context.
 
-- **Vercel:** set Root Directory to `frontend/`, install with `npm ci`, build with `npm run build`, and set Output Directory to `dist`. Configure `VITE_API_URL` to the Railway API URL ending in `/api` (see `frontend/.env.example`).
-- **Railway:** set Root Directory to `backend/` and deploy with its included `Dockerfile` (or use `npm ci`, `npm run build`, and `npm start`). Configure `DATABASE_URL`, a unique `JWT_SECRET`, `WEB_ORIGIN`, and SMTP settings (see `backend/.env.example`). Run `npm run db:deploy` as the pre-deploy migration command.
-- **Local stack:** root `docker-compose.yml` provides PostgreSQL and Mailpit; the root `.env.example` is for this compose setup. The database schema, seed, IPEDS source data, and importer are all under `backend/`.
+- **Vercel:** set Root Directory to `frontend/`, install with `npm ci`, build with `npm run build`, and set Output Directory to `dist`. Configure `VITE_API_URL` to the Railway API URL ending in `/api`.
+- **Railway:** set Root Directory to `backend/` and deploy with its included `Dockerfile` (or use `npm ci`, `npm run build`, and `npm start`). Configure `DATABASE_URL`, a unique `JWT_SECRET`, `WEB_ORIGIN`, and SMTP settings in Railway's secret settings. `WEB_ORIGIN` must contain the exact frontend origin(s), comma-separated if needed (for example, the production Vercel domain and a Vercel preview domain; do not include `/api`). Run `npm run db:deploy` as the pre-deploy migration command.
+- **Local stack:** root `docker-compose.yml` provides PostgreSQL and Mailpit. Configure local application settings in the ignored `backend/.env` and `frontend/.env` files. The database schema, seed, IPEDS source data, and importer are all under `backend/`.
 
 Before creating or migrating a database, read the [database design and security guide](docs/DATABASE_DESIGN.md). It documents current tables, the recommended production additions, sizing, access controls, and safe migration steps.
 

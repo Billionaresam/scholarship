@@ -13,6 +13,7 @@ type Scholarship = {
   fundingType: "FULL" | "PARTIAL";
   amountText: string;
   deadline?: string;
+  createdAt?: string;
   verificationStatus: string;
   sourceUrl?: string | null;
 };
@@ -183,6 +184,10 @@ function App() {
   const [query, setQuery] = useState("");
   const [degree, setDegree] = useState("All degrees");
   const [funding, setFunding] = useState("Any award");
+  const [field, setField] = useState("All disciplines");
+  const [deadlineWindow, setDeadlineWindow] = useState("Any deadline");
+  const [sortOrder, setSortOrder] = useState("deadline");
+  const [scholarshipPage, setScholarshipPage] = useState(0);
   const [selected, setSelected] = useState<Scholarship | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [authReturnView, setAuthReturnView] = useState<View>("applications");
@@ -410,18 +415,77 @@ function App() {
 
   const filtered = useMemo(
     () =>
-      scholarships.filter((item) => {
-        const text =
-          `${item.title} ${item.provider} ${item.field} ${item.description}`.toLowerCase();
-        return (
-          text.includes(query.trim().toLowerCase()) &&
-          (degree === "All degrees" || item.degreeLevel === degree) &&
-          (funding === "Any award" || item.fundingType === funding) &&
-          (view !== "saved" || saved.includes(item.id))
-        );
-      }),
-    [scholarships, query, degree, funding, view, saved],
+      scholarships
+        .filter((item) => {
+          const text =
+            `${item.title} ${item.provider} ${item.field} ${item.description}`.toLowerCase();
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const daysUntilDeadline = item.deadline
+            ? Math.ceil(
+                (new Date(item.deadline).getTime() - today.getTime()) /
+                  86400000,
+              )
+            : null;
+          return (
+            text.includes(query.trim().toLowerCase()) &&
+            (degree === "All degrees" || item.degreeLevel === degree) &&
+            (funding === "Any award" || item.fundingType === funding) &&
+            (field === "All disciplines" || item.field === field) &&
+            (deadlineWindow === "Any deadline" ||
+              (deadlineWindow === "No deadline" && !item.deadline) ||
+              (deadlineWindow === "Next 30 days" &&
+                daysUntilDeadline !== null &&
+                daysUntilDeadline >= 0 &&
+                daysUntilDeadline <= 30) ||
+              (deadlineWindow === "Next 90 days" &&
+                daysUntilDeadline !== null &&
+                daysUntilDeadline >= 0 &&
+                daysUntilDeadline <= 90)) &&
+            (view !== "saved" || saved.includes(item.id))
+          );
+        })
+        .sort((first, second) => {
+          if (sortOrder === "newest") {
+            return (
+              new Date(second.createdAt || 0).getTime() -
+              new Date(first.createdAt || 0).getTime()
+            );
+          }
+          const firstDeadline = first.deadline
+            ? new Date(first.deadline).getTime()
+            : Number.POSITIVE_INFINITY;
+          const secondDeadline = second.deadline
+            ? new Date(second.deadline).getTime()
+            : Number.POSITIVE_INFINITY;
+          return firstDeadline - secondDeadline;
+        }),
+    [
+      scholarships,
+      query,
+      degree,
+      funding,
+      field,
+      deadlineWindow,
+      sortOrder,
+      view,
+      saved,
+    ],
   );
+  const scholarshipPageSize = 10;
+  const scholarshipPageCount = Math.ceil(filtered.length / scholarshipPageSize);
+  const visibleScholarships = filtered.slice(
+    scholarshipPage * scholarshipPageSize,
+    (scholarshipPage + 1) * scholarshipPageSize,
+  );
+  const scholarshipFields = useMemo(
+    () =>
+      [...new Set(scholarships.map((item) => item.field).filter(Boolean))].sort(),
+    [scholarships],
+  );
+  useEffect(() => {
+    setScholarshipPage(0);
+  }, [query, degree, funding, field, deadlineWindow, sortOrder, view]);
   const savedScholarships = useMemo(
     () => scholarships.filter((item) => saved.includes(item.id)),
     [scholarships, saved],
@@ -679,19 +743,32 @@ function App() {
         className={mobileMenuOpen ? "sidebar mobile-open" : "sidebar"}
         aria-label="Student workspace navigation"
       >
-        <button
-          className="brand"
-          onClick={() => {
-            setView("discover");
-            setMobileMenuOpen(false);
-          }}
-          aria-label="ScholarBridge home"
-        >
-          <span className="brand-mark">S</span>
-          <span>
-            ScholarBridge<small>STUDENT DESK</small>
-          </span>
-        </button>
+        <div className="sidebar-header">
+          <button
+            className="brand"
+            onClick={() => {
+              setView("discover");
+              setMobileMenuOpen(false);
+            }}
+            aria-label="ScholarBridge home"
+          >
+            <span className="brand-mark">S</span>
+            <span>
+              ScholarBridge<small>STUDENT DESK</small>
+            </span>
+          </button>
+          <button
+            className="sidebar-close"
+            onClick={() => {
+              setMobileMenuOpen(false);
+              mobileMenuButton.current?.focus();
+            }}
+            aria-label="Close navigation"
+            title="Close navigation"
+          >
+            ×
+          </button>
+        </div>
         <div className="workspace-label">YOUR WORKSPACE</div>
         <nav className="side-nav" aria-label="Main navigation">
           {navItems.map((item) => (
@@ -849,7 +926,7 @@ function App() {
                 </div>
               </div>
             </div>
-            <div className="search-panel">
+            <div className="search-panel scholarship-search-panel">
               <label className="search-field">
                 <span>⌕</span>
                 <input
@@ -884,20 +961,61 @@ function App() {
                   <option value="PARTIAL">Partial funding</option>
                 </select>
               </label>
+              <label className="filter-select">
+                <span>DISCIPLINE</span>
+                <select
+                  value={field}
+                  onChange={(event) => setField(event.target.value)}
+                >
+                  <option>All disciplines</option>
+                  {scholarshipFields.map((scholarshipField) => (
+                    <option key={scholarshipField}>{scholarshipField}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="filter-select">
+                <span>DEADLINE</span>
+                <select
+                  value={deadlineWindow}
+                  onChange={(event) => setDeadlineWindow(event.target.value)}
+                >
+                  <option>Any deadline</option>
+                  <option>Next 30 days</option>
+                  <option>Next 90 days</option>
+                  <option>No deadline</option>
+                </select>
+              </label>
             </div>
             <div className="section-heading">
               <div>
                 <span className="eyebrow">THE OPPORTUNITY BOARD</span>
                 <h2>
-                  {query || degree !== "All degrees" || funding !== "Any award"
+                  {query ||
+                  degree !== "All degrees" ||
+                  funding !== "Any award" ||
+                  field !== "All disciplines" ||
+                  deadlineWindow !== "Any deadline"
                     ? "Matching opportunities"
                     : "Opportunities to explore"}
                 </h2>
               </div>
-              <span className="result-count">
-                {filtered.length}{" "}
-                {filtered.length === 1 ? "opportunity" : "opportunities"}
-              </span>
+              <div className="results-controls">
+                <label className="sort-select">
+                  <span>Sort</span>
+                  <select
+                    value={sortOrder}
+                    onChange={(event) => setSortOrder(event.target.value)}
+                    aria-label="Sort scholarships"
+                  >
+                    <option value="deadline">Deadline: soonest</option>
+                    <option value="newest">Recently added</option>
+                  </select>
+                </label>
+                <span className="result-count">
+                  {filtered.length} {" "}
+                  {filtered.length === 1 ? "opportunity" : "opportunities"}
+                </span>
+              </div>
             </div>
             {loading && (
               <div className="loading-line">
@@ -911,7 +1029,7 @@ function App() {
               </div>
             )}
             <div className="scholarship-list">
-              {filtered.map((item, index) => (
+              {visibleScholarships.map((item, index) => (
                 <ScholarshipCard
                   key={item.id}
                   item={item}
@@ -922,6 +1040,29 @@ function App() {
                 />
               ))}
             </div>
+            {scholarshipPageCount > 1 && (
+              <nav className="scholarship-pagination" aria-label="Scholarship pages">
+                <span>
+                  Showing {scholarshipPage * scholarshipPageSize + 1}-
+                  {Math.min((scholarshipPage + 1) * scholarshipPageSize, filtered.length)} of {filtered.length}
+                </span>
+                <div>
+                  <button
+                    onClick={() => setScholarshipPage((page) => page - 1)}
+                    disabled={scholarshipPage === 0}
+                  >
+                    Previous
+                  </button>
+                  <span>Page {scholarshipPage + 1} of {scholarshipPageCount}</span>
+                  <button
+                    onClick={() => setScholarshipPage((page) => page + 1)}
+                    disabled={scholarshipPage + 1 >= scholarshipPageCount}
+                  >
+                    Next
+                  </button>
+                </div>
+              </nav>
+            )}
             {!loading && !scholarshipError && !filtered.length && (
               <div className="empty-state">
                 <span>⌕</span>
@@ -941,6 +1082,8 @@ function App() {
                       setQuery("");
                       setDegree("All degrees");
                       setFunding("Any award");
+                      setField("All disciplines");
+                      setDeadlineWindow("Any deadline");
                     }}
                   >
                     Clear filters

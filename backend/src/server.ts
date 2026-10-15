@@ -15,7 +15,18 @@ dotenv.config({ path: process.env.ENV_FILE || '.env' });
 dotenv.config({ path: process.env.ENV_FILE || '../.env' });
 const db=new PrismaClient(), app=express(), port=Number(process.env.PORT||4000), secret=process.env.JWT_SECRET||'dev-only-change-me';
 if (process.env.NODE_ENV === 'production' && secret.length < 32) throw new Error('JWT_SECRET must contain at least 32 characters in production.');
-app.use(helmet()); app.use(cors({origin:process.env.WEB_ORIGIN||'http://localhost:5173'})); app.use(express.json({limit:'1mb'})); app.use(rateLimit({windowMs:15*60*1000,max:200}));
+const allowedOrigins = new Set(
+	(process.env.WEB_ORIGIN || 'http://localhost:5173')
+		.split(',')
+		.map((origin) => origin.trim())
+		.filter(Boolean)
+		.map((origin) => new URL(origin).origin),
+);
+app.use(helmet());
+app.use(cors({
+	origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin)),
+}));
+app.use(express.json({limit:'1mb'})); app.use(rateLimit({windowMs:15*60*1000,max:200}));
 app.use('/api', (_req, res, next) => {
 	res.set('Cache-Control', 'no-store');
 	next();
